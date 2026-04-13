@@ -1,0 +1,206 @@
+{
+  "version": "1.0",
+  "description": "Gold retrieval evaluation set — synthetic clinical/regulatory document corpus",
+  "chunks": [
+    {
+      "id": "chunk-001",
+      "text": "The device is intended for use in adult patients aged 18 and over with confirmed diagnosis of atrial fibrillation. It is indicated for single-use, short-term cardiac monitoring in a clinical setting under physician supervision.",
+      "section_title": "1 Intended Use",
+      "heading_path": ["1 Intended Use"],
+      "page_start": 2,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-002",
+      "text": "Contraindications include patients with active implantable devices such as pacemakers or implantable cardioverter-defibrillators. The device should not be used on patients with known skin allergies to medical-grade adhesives.",
+      "section_title": "2 Contraindications",
+      "heading_path": ["2 Contraindications"],
+      "page_start": 3,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-003",
+      "text": "Risk management activities were performed in accordance with ISO 14971:2019. A total of 47 hazardous situations were identified. Residual risks were evaluated and deemed acceptable after implementation of risk control measures.",
+      "section_title": "3 Risk Management Summary",
+      "heading_path": ["3 Risk Management Summary"],
+      "page_start": 5,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-004",
+      "text": "Software is classified as Class B per IEC 62304. The software development lifecycle follows a V-model process with documented requirements, design, implementation, verification, and validation phases. All software anomalies are tracked in the issue management system.",
+      "section_title": "4.1 Software Classification",
+      "heading_path": ["4 Software", "4.1 Software Classification"],
+      "page_start": 8,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-005",
+      "text": "Cybersecurity risk assessment was conducted per MDCG 2019-16 guidance. Threat modelling identified five high-severity threats related to data transmission. Mitigations include AES-256 encryption for all data at rest and in transit.",
+      "section_title": "4.2 Cybersecurity",
+      "heading_path": ["4 Software", "4.2 Cybersecurity"],
+      "page_start": 10,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-006",
+      "text": "Clinical data was gathered from three sources: literature search, clinical investigation results, and post-market clinical follow-up data. A total of 142 peer-reviewed publications were identified and appraised. The clinical evidence supports the safety and performance claims.",
+      "section_title": "5 Clinical Evidence",
+      "heading_path": ["5 Clinical Evidence"],
+      "page_start": 12,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-007",
+      "text": "Substantial equivalence was demonstrated with the predicate device ModelX-100 (cleared K193421). Both devices share the same intended use, technology, and indications. Performance characteristics are equivalent within clinically accepted margins.",
+      "section_title": "6 Substantial Equivalence",
+      "heading_path": ["6 Substantial Equivalence"],
+      "page_start": 15,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-008",
+      "text": "Post-market surveillance data over 24 months showed a complaint rate of 0.3% and zero serious adverse events attributable to the device. Vigilance reporting obligations were met and no field safety corrective actions were required.",
+      "section_title": "7 Post-Market Surveillance",
+      "heading_path": ["7 Post-Market Surveillance"],
+      "page_start": 18,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-009",
+      "text": "The device must be stored at temperatures between -20°C and +50°C and relative humidity not exceeding 85% non-condensing. Shelf life is 24 months from the date of manufacture when stored under specified conditions.",
+      "section_title": "8 Storage and Handling",
+      "heading_path": ["8 Storage and Handling"],
+      "page_start": 20,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-010",
+      "text": "All electrical safety testing was performed to IEC 60601-1 Ed. 3.1 and IEC 60601-1-2 (EMC). The device passed all Type Tests including dielectric strength, leakage current, and electromagnetic compatibility in clinical environments.",
+      "section_title": "9 Electrical Safety Testing",
+      "heading_path": ["9 Electrical Safety Testing"],
+      "page_start": 22,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-011",
+      "text": "Biocompatibility testing was performed per ISO 10993-1. Tests conducted include cytotoxicity, sensitisation, intracutaneous reactivity, and acute systemic toxicity. All results met acceptance criteria with no biological risks identified.",
+      "section_title": "10 Biocompatibility",
+      "heading_path": ["10 Biocompatibility"],
+      "page_start": 24,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    },
+    {
+      "id": "chunk-012",
+      "text": "Usability engineering was conducted per IEC 62366-1. Summative usability evaluation involved 15 representative users from the intended population. No use errors resulting in harm were observed during the evaluation.",
+      "section_title": "11 Usability Engineering",
+      "heading_path": ["11 Usability Engineering"],
+      "page_start": 26,
+      "document_id": "doc-001",
+      "document_title": "Clinical Evaluation Report v2.1"
+    }
+  ],
+  "queries": [
+    {
+      "id": "q001",
+      "query": "What is the intended use and patient population for this device?",
+      "relevant_chunk_ids": ["chunk-001"],
+      "notes": "Straightforward intended use lookup"
+    },
+    {
+      "id": "q002",
+      "query": "Are there any contraindications for patients with pacemakers?",
+      "relevant_chunk_ids": ["chunk-002"],
+      "notes": "Contraindication lookup — should not retrieve intended use"
+    },
+    {
+      "id": "q003",
+      "query": "How was risk management performed and what standard was followed?",
+      "relevant_chunk_ids": ["chunk-003"],
+      "notes": "ISO 14971 risk management"
+    },
+    {
+      "id": "q004",
+      "query": "What IEC 62304 software class is the device classified under?",
+      "relevant_chunk_ids": ["chunk-004"],
+      "notes": "Software classification"
+    },
+    {
+      "id": "q005",
+      "query": "What cybersecurity measures protect data transmission?",
+      "relevant_chunk_ids": ["chunk-005"],
+      "notes": "Cybersecurity — should rank above general risk management"
+    },
+    {
+      "id": "q006",
+      "query": "What clinical evidence supports the safety and performance claims?",
+      "relevant_chunk_ids": ["chunk-006"],
+      "notes": "Clinical evidence section"
+    },
+    {
+      "id": "q007",
+      "query": "Which predicate device was used to demonstrate substantial equivalence?",
+      "relevant_chunk_ids": ["chunk-007"],
+      "notes": "Predicate device / 510(k) equivalence"
+    },
+    {
+      "id": "q008",
+      "query": "Have there been any serious adverse events reported in post-market surveillance?",
+      "relevant_chunk_ids": ["chunk-008"],
+      "notes": "PMS adverse events"
+    },
+    {
+      "id": "q009",
+      "query": "What are the storage temperature and shelf life requirements?",
+      "relevant_chunk_ids": ["chunk-009"],
+      "notes": "Storage conditions"
+    },
+    {
+      "id": "q010",
+      "query": "Which electrical safety standards were used for testing?",
+      "relevant_chunk_ids": ["chunk-010"],
+      "notes": "IEC 60601 electrical safety"
+    },
+    {
+      "id": "q011",
+      "query": "What biocompatibility tests were conducted per ISO 10993?",
+      "relevant_chunk_ids": ["chunk-011"],
+      "notes": "Biocompatibility"
+    },
+    {
+      "id": "q012",
+      "query": "How many users participated in the summative usability evaluation?",
+      "relevant_chunk_ids": ["chunk-012"],
+      "notes": "Usability engineering — numeric detail"
+    },
+    {
+      "id": "q013",
+      "query": "What software development lifecycle model is used?",
+      "relevant_chunk_ids": ["chunk-004"],
+      "notes": "Multi-keyword: V-model, SDLC, IEC 62304"
+    },
+    {
+      "id": "q014",
+      "query": "Encryption standard used for data security",
+      "relevant_chunk_ids": ["chunk-005"],
+      "notes": "Short keyword query — AES-256"
+    },
+    {
+      "id": "q015",
+      "query": "Is the device safe for patients with skin allergies?",
+      "relevant_chunk_ids": ["chunk-002"],
+      "notes": "Indirect contraindication query — requires semantic understanding"
+    }
+  ]
+}

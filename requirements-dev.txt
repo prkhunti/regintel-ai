@@ -1,0 +1,18 @@
+# ── Test runner ───────────────────────────────────────────────────────────────
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==5.0.0
+
+# ── Retrieval packages (needed for unit + eval tests) ─────────────────────────
+rank-bm25==0.2.2
+tiktoken==0.8.0
+openai==1.51.0
+
+# ── Shared schemas / models ───────────────────────────────────────────────────
+pydantic==2.9.2
+pydantic-settings==2.5.2
+sqlalchemy==2.0.35
+pgvector==0.3.5
+
+# ── Reranker (optional — tests mock the model; install only for real runs) ─────
+# sentence-transformers==3.1.1

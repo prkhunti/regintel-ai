@@ -1,0 +1,103 @@
+services:
+
+  # ── Postgres + pgvector ──────────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-regintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-regintel}
+      POSTGRES_DB: ${POSTGRES_DB:-regintel}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-regintel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API ──────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      PYTHONPATH: /app
+      UPLOAD_DIR: /data/uploads
+      INDEX_DIR: /data/indexes
+      # Pass through keys from the host shell if set; .env values are the fallback
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+      - bm25indexes:/data/indexes
+
+  # ── Worker ───────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      PYTHONPATH: /app
+      UPLOAD_DIR: /data/uploads
+      INDEX_DIR: /data/indexes
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    command: celery -A tasks.celery_app worker --loglevel=info --concurrency=4 -Q ingestion,celery
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+      - bm25indexes:/data/indexes
+
+  # ── Web ──────────────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      # API_URL is already baked into the image via Dockerfile ENV.
+      # Override here only if you point the web container at a different API host.
+      API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  bm25indexes:

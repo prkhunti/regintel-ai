@@ -1,0 +1,30 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9          # file uploads
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.3
+pgvector==0.3.5
+
+# ── Config ────────────────────────────────────────────────────────────────────
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# ── Task queue (send only — no worker code here) ──────────────────────────────
+celery==5.4.0
+redis==5.1.1
+
+# ── LLM clients (health probe + query-time embedding/generation) ──────────────
+openai==1.51.0
+anthropic==0.34.2
+# openai 1.51.0 passes proxies= to httpx.AsyncClient, removed in httpx 0.28
+httpx>=0.27.0,<0.28.0
+
+# ── Observability ─────────────────────────────────────────────────────────────
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-sqlalchemy==0.48b0
