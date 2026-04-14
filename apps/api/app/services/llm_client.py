@@ -222,6 +222,52 @@ class AnthropicClient(BaseLLMClient):
         )
 
 
+# ── Mock (stub for dev / CI without API keys) ─────────────────────────────────
+
+class MockLLMClient(BaseLLMClient):
+    """
+    Stub LLM client — returns canned responses with zero network calls.
+    Use LLM_PROVIDER=mock in .env for development / CI without API keys.
+    """
+
+    async def complete(
+        self,
+        messages: list[dict],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+    ) -> LLMResponse:
+        return LLMResponse(
+            text="[STUB] Mock answer — no LLM provider configured.",
+            model="mock",
+            prompt_tokens=0,
+            completion_tokens=0,
+            latency_ms=0,
+        )
+
+    async def complete_structured(
+        self,
+        messages: list[dict],
+        schema: Type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+    ) -> tuple[T, LLMResponse]:
+        # Build the most minimal valid instance using Pydantic defaults
+        try:
+            obj = schema.model_construct()
+            text = obj.model_dump_json()
+        except Exception:
+            text = "{}"
+        resp = LLMResponse(
+            text=text, model="mock",
+            prompt_tokens=0, completion_tokens=0, latency_ms=0,
+        )
+        try:
+            parsed = schema.model_validate_json(text)
+        except Exception:
+            parsed = schema.model_construct()
+        return parsed, resp
+
+
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def get_llm_client(
@@ -236,4 +282,6 @@ def get_llm_client(
         return OpenAIClient(model=model, api_key=api_key)
     if provider == "anthropic":
         return AnthropicClient(model=model, api_key=api_key)
-    raise ValueError(f"Unknown LLM provider: {provider!r}. Use 'openai' or 'anthropic'.")
+    if provider in ("mock", "random"):
+        return MockLLMClient()
+    raise ValueError(f"Unknown LLM provider: {provider!r}. Use 'openai', 'anthropic', or 'mock'.")

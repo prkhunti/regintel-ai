@@ -5,6 +5,7 @@ Supports:
   - OpenAI (text-embedding-3-small / text-embedding-3-large)
   - Anthropic voyage embeddings (stub — add voyage-ai client when needed)
   - Local sentence-transformers (stub)
+  - Random (deterministic stub — for testing without any API key)
 
 All providers expose the same interface:
     embed_texts(texts: list[str]) -> list[list[float]]
@@ -12,6 +13,7 @@ All providers expose the same interface:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 
@@ -99,6 +101,24 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         return embeddings.tolist()
 
 
+class RandomEmbedder(BaseEmbedder):
+    """
+    Stub embedder — returns deterministic random vectors.
+    Zero external dependencies, zero API calls.
+    Use LLM_PROVIDER=random in .env for development / CI without API keys.
+    """
+
+    def __init__(self, embedding_dim: int = 1536, seed: int = 42) -> None:
+        import random as _random
+        self._dim = embedding_dim
+        self._rng = _random.Random(seed)
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return [[self._rng.uniform(-1.0, 1.0) for _ in range(self._dim)] for _ in texts]
+
+
 def get_embedder(
     provider: str = "openai",
     model: str | None = None,
@@ -109,7 +129,7 @@ def get_embedder(
     Factory — returns the correct embedder for the configured provider.
 
     Args:
-        provider: "openai" | "local"
+        provider: "openai" | "local" | "random"
         model: Model name override (uses provider defaults if None).
         api_key: API key override (falls back to env vars).
         batch_size: Texts per API call.
@@ -125,4 +145,8 @@ def get_embedder(
             model=model or "BAAI/bge-small-en-v1.5",
             batch_size=batch_size,
         )
-    raise ValueError(f"Unknown embedding provider: {provider!r}. Choose 'openai' or 'local'.")
+    if provider == "random":
+        return RandomEmbedder(
+            embedding_dim=int(os.getenv("EMBEDDING_DIM", "1536")),
+        )
+    raise ValueError(f"Unknown embedding provider: {provider!r}. Choose 'openai', 'local', or 'random'.")

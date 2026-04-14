@@ -74,6 +74,13 @@ async def _check_redis() -> dict:
 async def _check_llm() -> dict:
     provider = os.getenv("LLM_PROVIDER", "openai")
 
+    if provider in ("random", "mock"):
+        return {
+            "status": "ok",
+            "provider": provider,
+            "detail": "Stub mode — no API key required. Set LLM_PROVIDER=openai once credits are available.",
+        }
+
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key or api_key.startswith("sk-...") or len(api_key) < 20:

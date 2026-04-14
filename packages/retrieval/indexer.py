@@ -162,11 +162,13 @@ class BM25Index(BaseIndex):
     @staticmethod
     def _make_bm25(texts: list[str]):
         try:
-            from rank_bm25 import BM25Okapi
+            from rank_bm25 import BM25Plus
         except ImportError as e:
             raise RuntimeError("rank_bm25 is required: pip install rank-bm25") from e
         tokenized = [_tokenize(t) for t in texts]
-        return BM25Okapi(tokenized)
+        # BM25Plus avoids zero IDF scores for small corpora (log(N/df)+1 floor)
+        # BM25Okapi gives IDF=0 when df == N/2, causing matching docs to score 0.
+        return BM25Plus(tokenized)
 
 
 # ── PostgreSQL FTS indexer ────────────────────────────────────────────────────
