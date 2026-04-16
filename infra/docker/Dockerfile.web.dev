@@ -1,0 +1,21 @@
+# ── Dev web container ─────────────────────────────────────────────────────────
+# Runs `next dev` with bind-mounted source and hot module replacement.
+# node_modules are stored in a named Docker volume so they survive restarts
+# without re-running npm install from scratch.
+#
+# Usage: docker compose -f ... -f docker-compose.dev.yml up web
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=development
+
+EXPOSE 3000
+
+# Source is bind-mounted at /app at runtime.
+# Install deps on first start (fast on subsequent restarts thanks to the
+# named volume that persists node_modules between container recreations).
+CMD ["sh", "-c", "npm install && npm run dev"]

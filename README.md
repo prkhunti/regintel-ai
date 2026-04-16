@@ -101,7 +101,7 @@ regintel-ai/
 │   │   │   ├── routers/        # documents · query · audit · eval
 │   │   │   └── services/       # answer_service · confidence · llm_client · document_service
 │   │   └── migrations/         # Alembic (001 schema, 002 HNSW index)
-│   ├── web/                    # Next.js 14 frontend (TypeScript + Tailwind)
+│   ├── web/                    # Next.js 15 frontend (TypeScript + Tailwind)
 │   │   └── src/
 │   │       ├── pages/          # index (query) · audit · eval
 │   │       ├── components/     # AnswerCard · CitationList · ConfidenceBadge
@@ -165,53 +165,61 @@ regintel-ai/
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- Python 3.11+
-- Node.js 20+
+- Docker Desktop (includes Docker Compose v2)
 
-### With Docker (recommended)
+### First-time setup
 
 ```bash
-# 1. Clone and configure
 git clone https://github.com/your-username/regintel-ai.git
 cd regintel-ai
-make env          # copies .env.example → .env; fill in API keys
-
-# 2. Start all services (PostgreSQL, Redis, API, worker)
-make up-build
-
-# 3. Run database migrations
-make migrate
-
-# 4. Start the Next.js dev server
-make dev-web      # → http://localhost:3000
-# API docs at   → http://localhost:8000/docs
+make env          # copies .env.example → .env
 ```
 
-### Without Docker (local dev)
+Open `.env` and set your API keys when you have them.
+`LLM_PROVIDER=random` is the default — the full ingestion pipeline runs
+with deterministic random embeddings and a mock LLM so you can develop and
+test without any API credits.
+
+### Production mode (baked images, no bind mounts)
 
 ```bash
-# Install Python dependencies
-make install-dev
+make up-build     # build images and start all 5 services
+make migrate      # run database migrations (first time only)
+# Web UI  → http://localhost:3000
+# API docs → http://localhost:8000/docs
+```
 
-# In three separate terminals:
-make dev-api      # uvicorn on :8000
-make dev-worker   # Celery worker
-make dev-web      # Next.js on :3000
+### Dev mode (bind-mounted source + hot reload)
+
+```bash
+make dev          # build dev images and start the dev stack
+make migrate      # run migrations if not already done
+# Web UI  → http://localhost:3000  (Next.js HMR active)
+# API docs → http://localhost:8000/docs  (uvicorn --reload active)
+```
+
+- `apps/api/**/*.py` changes reload uvicorn automatically.
+- `apps/web/**/*.tsx` changes reload Next.js automatically.
+- `apps/worker/**/*.py` changes require `make dev-restart-worker`.
+
+```bash
+make dev-logs           # tail all dev logs
+make dev-restart-worker # apply worker code changes
+make dev-down           # stop dev stack
 ```
 
 ### Environment variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | `openai` or `anthropic` | `openai` |
+| `LLM_PROVIDER` | `random` (stub, no key needed) · `openai` · `anthropic` | `random` |
 | `LLM_MODEL` | Model name | `gpt-4o` |
-| `OPENAI_API_KEY` | OpenAI key | — |
-| `ANTHROPIC_API_KEY` | Anthropic key | — |
+| `OPENAI_API_KEY` | OpenAI key (required when `LLM_PROVIDER=openai`) | — |
+| `ANTHROPIC_API_KEY` | Anthropic key (required when `LLM_PROVIDER=anthropic`) | — |
 | `EMBEDDING_MODEL` | Embedding model | `text-embedding-3-small` |
 | `DATABASE_URL` | Async PostgreSQL URL | `postgresql+asyncpg://...` |
-| `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
-| `RERANKER_BACKEND` | `none`, `cross-encoder`, or `cohere` | `none` |
+| `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
+| `RERANKER_BACKEND` | `none` · `cross-encoder` · `cohere` | `none` |
 
 ---
 
