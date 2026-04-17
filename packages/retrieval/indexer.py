@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SparseHit:
+    """Sparse retrieval result from BM25 or PostgreSQL FTS.
+
+    Parameters
+    ----------
+    chunk_id
+        Chunk identifier returned by the sparse backend.
+    score
+        Sparse relevance score for the chunk.
+    text
+        Optional chunk text when available from the backend.
+    """
     chunk_id: str           # UUID string or integer index
     score: float
     text: str | None = None  # populated when available
@@ -94,6 +105,20 @@ class BM25Index(BaseIndex):
     # ── Public interface ──────────────────────────────────────────────────────
 
     def build(self, chunk_ids: list[str], texts: list[str]) -> None:
+        """Build the BM25 index from chunk identifiers and texts.
+
+        Parameters
+        ----------
+        chunk_ids
+            Chunk identifiers in corpus order.
+        texts
+            Chunk texts aligned with ``chunk_ids``.
+
+        Raises
+        ------
+        ValueError
+            If ``chunk_ids`` and ``texts`` do not have the same length.
+        """
         if len(chunk_ids) != len(texts):
             raise ValueError("chunk_ids and texts must have the same length")
         self._chunk_ids = list(chunk_ids)
@@ -102,15 +127,34 @@ class BM25Index(BaseIndex):
         logger.info("BM25 index built with %d documents", len(texts))
 
     def add(self, chunk_id: str, text: str) -> None:
-        """
-        Append a single document.  Re-builds the underlying BM25Okapi object —
-        acceptable for incremental ingestion; not for high-frequency streaming.
+        """Add one chunk to the index and rebuild the BM25 state.
+
+        Parameters
+        ----------
+        chunk_id
+            Identifier for the new chunk.
+        text
+            Chunk text to index.
         """
         self._chunk_ids.append(chunk_id)
         self._texts.append(text)
         self._bm25 = self._make_bm25(self._texts)
 
     def search(self, query: str, top_k: int = 10) -> list[SparseHit]:
+        """Search the BM25 index for keyword matches.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        top_k
+            Maximum number of hits to return.
+
+        Returns
+        -------
+        list[SparseHit]
+            Ranked sparse hits with positive BM25 scores only.
+        """
         if self._bm25 is None or not self._chunk_ids:
             return []
 
@@ -136,6 +180,13 @@ class BM25Index(BaseIndex):
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def save(self, path: Path | str) -> None:
+        """Persist the BM25 index contents to disk.
+
+        Parameters
+        ----------
+        path
+            Output pickle file path.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as f:
@@ -147,6 +198,23 @@ class BM25Index(BaseIndex):
 
     @classmethod
     def load(cls, path: Path | str) -> "BM25Index":
+        """Load a previously saved BM25 index from disk.
+
+        Parameters
+        ----------
+        path
+            Pickle file path created by :meth:`save`.
+
+        Returns
+        -------
+        BM25Index
+            Reconstructed BM25 index instance.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the requested pickle file does not exist.
+        """
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"BM25 index not found: {path}")
@@ -194,15 +262,25 @@ class PostgresFTSIndexer(BaseIndex):
         self._session = session
 
     def set_session(self, session) -> None:
+        """Attach a database session to the indexer.
+
+        Parameters
+        ----------
+        session
+            SQLAlchemy sync or async session used for subsequent operations.
+        """
         self._session = session
 
     # ── DDL helper ────────────────────────────────────────────────────────────
 
     @staticmethod
     def ensure_fts_column(session) -> None:
-        """
-        Idempotently add the ``fts`` tsvector column + GIN index to ``chunks``.
-        Call this once during migrations or app startup.
+        """Ensure the generated FTS column and index exist.
+
+        Parameters
+        ----------
+        session
+            Open database session capable of executing DDL statements.
         """
         session.execute("""
             ALTER TABLE chunks
@@ -221,10 +299,14 @@ class PostgresFTSIndexer(BaseIndex):
     # ── BaseIndex interface ───────────────────────────────────────────────────
 
     def build(self, chunk_ids: list[str], texts: list[str]) -> None:
-        """
-        Bulk-update the ``fts`` column for the given chunk IDs.
-        The GENERATED ALWAYS column handles this automatically on INSERT/UPDATE,
-        so this is a no-op when the generated column DDL is in place.
+        """Record bulk indexing intent for chunks backed by generated FTS columns.
+
+        Parameters
+        ----------
+        chunk_ids
+            Chunk identifiers that would be indexed.
+        texts
+            Chunk texts aligned with ``chunk_ids``.
         """
         logger.info(
             "PostgresFTSIndexer.build(): fts column is auto-generated; "
@@ -233,9 +315,36 @@ class PostgresFTSIndexer(BaseIndex):
         )
 
     def add(self, chunk_id: str, text: str) -> None:
-        """No-op — the generated column updates on row INSERT."""
+        """Register a single inserted chunk.
+
+        Parameters
+        ----------
+        chunk_id
+            Identifier for the inserted chunk.
+        text
+            Chunk text associated with the row.
+        """
 
     def search(self, query: str, top_k: int = 10) -> list[SparseHit]:
+        """Search PostgreSQL full-text indexes for keyword matches.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        top_k
+            Maximum number of hits to return.
+
+        Returns
+        -------
+        list[SparseHit]
+            Ranked sparse hits returned by PostgreSQL FTS.
+
+        Raises
+        ------
+        RuntimeError
+            If no session has been configured on the indexer.
+        """
         if self._session is None:
             raise RuntimeError("PostgresFTSIndexer requires a database session. Call set_session() first.")
 
@@ -267,12 +376,24 @@ def _to_tsquery(text: str) -> str:
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def get_indexer(backend: str = "bm25", **kwargs) -> BaseIndex:
-    """
-    Factory for keyword indexers.
+    """Create a keyword index backend.
 
-    Args:
-        backend: ``"bm25"`` (default, in-memory) or ``"postgres"`` (production).
-        **kwargs: Passed to the indexer constructor.
+    Parameters
+    ----------
+    backend
+        Backend name. Supported values are ``"bm25"`` and ``"postgres"``.
+    **kwargs
+        Additional keyword arguments forwarded to the backend constructor.
+
+    Returns
+    -------
+    BaseIndex
+        Configured sparse index implementation.
+
+    Raises
+    ------
+    ValueError
+        If ``backend`` is not a supported indexer type.
     """
     if backend == "bm25":
         return BM25Index()

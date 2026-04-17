@@ -10,9 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-COPY apps/worker/requirements.txt .
+COPY pyproject.toml .
 RUN pip install --upgrade pip && \
-    pip install --prefix=/install --no-cache-dir -r requirements.txt
+    pip install --prefix=/install --no-cache-dir ".[worker]"
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

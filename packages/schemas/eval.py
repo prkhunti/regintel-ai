@@ -20,6 +20,8 @@ class EvalCaseRead(EvalCaseCreate):
 
 
 class EvalRunCreate(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     label: str
     model_name: str
     retriever_config: dict
@@ -27,6 +29,8 @@ class EvalRunCreate(BaseModel):
 
 
 class EvalRunRead(BaseModel):
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
+
     id: UUID
     label: str
     model_name: str
@@ -40,5 +44,3 @@ class EvalRunRead(BaseModel):
     refusal_accuracy: float | None = None
     mean_latency_ms: int | None = None
     created_at: datetime
-
-    model_config = {"from_attributes": True}

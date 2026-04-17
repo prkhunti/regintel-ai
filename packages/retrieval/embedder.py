@@ -37,13 +37,47 @@ def _with_retry(fn, *args, attempts: int = _RETRY_ATTEMPTS, delay: float = _RETR
 class BaseEmbedder(ABC):
     @abstractmethod
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Return one embedding vector per input text (same order)."""
+        """Embed a batch of texts.
+
+        Parameters
+        ----------
+        texts
+            Input texts to embed in order.
+
+        Returns
+        -------
+        list[list[float]]
+            One embedding vector per input text in the same order.
+        """
 
     def embed_single(self, text: str) -> list[float]:
+        """Embed a single text string.
+
+        Parameters
+        ----------
+        text
+            Input text to embed.
+
+        Returns
+        -------
+        list[float]
+            Embedding vector for the input text.
+        """
         return self.embed_texts([text])[0]
 
 
 class OpenAIEmbedder(BaseEmbedder):
+    """Embedding backend powered by the OpenAI embeddings API.
+
+    Parameters
+    ----------
+    model
+        Embedding model identifier to call.
+    batch_size
+        Number of texts to send per API request.
+    api_key
+        Explicit API key override. Falls back to the OpenAI client defaults when omitted.
+    """
     def __init__(self, model: str = "text-embedding-3-small", batch_size: int = 100, api_key: str | None = None):
         try:
             from openai import OpenAI
@@ -78,7 +112,15 @@ class OpenAIEmbedder(BaseEmbedder):
 
 
 class SentenceTransformerEmbedder(BaseEmbedder):
-    """Local embedder — no API key required. Useful for dev / air-gapped envs."""
+    """Local sentence-transformers embedder.
+
+    Parameters
+    ----------
+    model
+        Hugging Face model identifier to load locally.
+    batch_size
+        Number of texts to encode per inference batch.
+    """
 
     def __init__(self, model: str = "BAAI/bge-small-en-v1.5", batch_size: int = 64):
         try:
@@ -102,10 +144,14 @@ class SentenceTransformerEmbedder(BaseEmbedder):
 
 
 class RandomEmbedder(BaseEmbedder):
-    """
-    Stub embedder — returns deterministic random vectors.
-    Zero external dependencies, zero API calls.
-    Use LLM_PROVIDER=random in .env for development / CI without API keys.
+    """Deterministic pseudo-random embedder for tests and local development.
+
+    Parameters
+    ----------
+    embedding_dim
+        Length of each generated embedding vector.
+    seed
+        Seed for the internal random number generator.
     """
 
     def __init__(self, embedding_dim: int = 1536, seed: int = 42) -> None:
@@ -114,6 +160,18 @@ class RandomEmbedder(BaseEmbedder):
         self._rng = _random.Random(seed)
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Return deterministic random embeddings for each input text.
+
+        Parameters
+        ----------
+        texts
+            Input texts to embed (content is ignored; only length matters).
+
+        Returns
+        -------
+        list[list[float]]
+            One random embedding vector per input text.
+        """
         if not texts:
             return []
         return [[self._rng.uniform(-1.0, 1.0) for _ in range(self._dim)] for _ in texts]
@@ -125,14 +183,28 @@ def get_embedder(
     api_key: str | None = None,
     batch_size: int = 100,
 ) -> BaseEmbedder:
-    """
-    Factory — returns the correct embedder for the configured provider.
+    """Create an embedder for the configured provider.
 
-    Args:
-        provider: "openai" | "local" | "random"
-        model: Model name override (uses provider defaults if None).
-        api_key: API key override (falls back to env vars).
-        batch_size: Texts per API call.
+    Parameters
+    ----------
+    provider
+        Backend name. Supported values are ``"openai"``, ``"local"``, and ``"random"``.
+    model
+        Optional provider-specific model override.
+    api_key
+        Optional API key override for remote providers.
+    batch_size
+        Number of texts to process per batch where supported.
+
+    Returns
+    -------
+    BaseEmbedder
+        Configured embedder implementation.
+
+    Raises
+    ------
+    ValueError
+        If ``provider`` is not a supported backend.
     """
     if provider == "openai":
         return OpenAIEmbedder(

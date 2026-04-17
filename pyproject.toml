@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regintel-ai"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+api = [
+    # ── Web framework ────────────────────────────────────────────────────────
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.30.6",
+    "python-multipart==0.0.9",
+    # ── Database ─────────────────────────────────────────────────────────────
+    "sqlalchemy[asyncio]==2.0.35",
+    "asyncpg==0.29.0",
+    "alembic==1.13.3",
+    "pgvector==0.3.5",
+    # ── Config ───────────────────────────────────────────────────────────────
+    "pydantic==2.9.2",
+    "pydantic-settings==2.5.2",
+    # ── Task queue (send only) ────────────────────────────────────────────────
+    "celery==5.4.0",
+    "redis==5.1.1",
+    # ── LLM clients ──────────────────────────────────────────────────────────
+    "openai==1.51.0",
+    "anthropic==0.34.2",
+    # openai 1.51.0 uses httpx proxies= removed in httpx 0.28
+    "httpx>=0.27.0,<0.28.0",
+    # ── Observability ─────────────────────────────────────────────────────────
+    "opentelemetry-api==1.27.0",
+    "opentelemetry-sdk==1.27.0",
+    "opentelemetry-instrumentation-fastapi==0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy==0.48b0",
+]
+worker = [
+    # ── Task queue ────────────────────────────────────────────────────────────
+    "celery==5.4.0",
+    "redis==5.1.1",
+    # ── Database (sync driver for Celery tasks) ───────────────────────────────
+    "sqlalchemy==2.0.35",
+    "psycopg2-binary==2.9.9",
+    "pgvector==0.3.5",
+    # ── Config / schemas ──────────────────────────────────────────────────────
+    "pydantic==2.9.2",
+    "pydantic-settings==2.5.2",
+    # ── PDF parsing + OCR ─────────────────────────────────────────────────────
+    "pdfplumber==0.11.4",
+    "pdf2image==1.17.0",
+    "pytesseract==0.3.13",
+    # ── Chunking / token counting ─────────────────────────────────────────────
+    "tiktoken==0.8.0",
+    # ── Sparse retrieval ──────────────────────────────────────────────────────
+    "rank-bm25==0.2.2",
+    # ── Embeddings ────────────────────────────────────────────────────────────
+    "openai==1.51.0",
+    "httpx>=0.27.0,<0.28.0",
+]
+dev = [
+    # ── Test runner ───────────────────────────────────────────────────────────
+    "pytest==8.3.3",
+    "pytest-asyncio==0.24.0",
+    "pytest-cov==5.0.0",
+    # ── Packages needed for unit + eval tests ─────────────────────────────────
+    "rank-bm25==0.2.2",
+    "tiktoken==0.8.0",
+    "openai==1.51.0",
+    "httpx>=0.27.0,<0.28.0",
+    "pydantic==2.9.2",
+    "pydantic-settings==2.5.2",
+    "sqlalchemy==2.0.35",
+    "pgvector==0.3.5",
+    # ── Linting / formatting / type-checking ──────────────────────────────────
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+]
+
+[tool.setuptools]
+packages = []   # no Python package to install — only the extras matter
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+# E  = pycodestyle errors
+# F  = Pyflakes
+# I  = isort
+# UP = pyupgrade (enforces modern syntax, e.g. Optional[T] → T | None)
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

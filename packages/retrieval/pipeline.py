@@ -32,13 +32,36 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EnrichedChunk:
-    """TextChunk enriched with its embedding vector."""
+    """Chunk plus its embedding vector.
+
+    Parameters
+    ----------
+    chunk
+        Chunk metadata and text payload.
+    embedding
+        Dense embedding produced for the chunk text.
+    """
     chunk: TextChunk
     embedding: list[float]
 
 
 @dataclass
 class PipelineResult:
+    """Output of the chunking and indexing pipeline.
+
+    Parameters
+    ----------
+    document_id
+        Identifier of the processed document.
+    enriched_chunks
+        Chunk records paired with their embeddings.
+    index
+        Sparse index populated during the pipeline run.
+    page_count
+        Number of parsed pages in the document.
+    stats
+        Timing and count metrics collected during processing.
+    """
     document_id: str
     enriched_chunks: list[EnrichedChunk]
     index: BaseIndex
@@ -77,15 +100,19 @@ class ChunkingPipeline:
         self.config = config or ChunkingConfig()
 
     def run(self, parsed_doc, document_id: str) -> PipelineResult:
-        """
-        Execute the full pipeline for one parsed document.
+        """Run the full chunking, embedding, and sparse-index pipeline.
 
-        Args:
-            parsed_doc: ``ParsedDocument`` from ``parser.parse_pdf()``.
-            document_id: UUID string for this document (used in index keys).
+        Parameters
+        ----------
+        parsed_doc
+            Parsed document returned by :func:`packages.retrieval.parser.parse_pdf`.
+        document_id
+            Document identifier used to derive chunk keys in the sparse index.
 
-        Returns:
-            ``PipelineResult`` with enriched chunks and a built index.
+        Returns
+        -------
+        PipelineResult
+            Pipeline output containing enriched chunks, built index, and timing stats.
         """
         t0 = time.perf_counter()
         logger.info("Pipeline started for document %s (%d pages)", document_id, parsed_doc.page_count)
@@ -152,9 +179,19 @@ class ChunkingPipeline:
     # ── Convenience: run on plain text (for testing) ──────────────────────────
 
     def run_on_text(self, text: str, document_id: str = "test") -> PipelineResult:
-        """
-        Run the pipeline on a plain string — useful for unit tests that
-        don't need a real PDF.
+        """Run the pipeline on plain text without parsing a PDF first.
+
+        Parameters
+        ----------
+        text
+            Plain-text document content.
+        document_id
+            Identifier assigned to the synthetic parsed document.
+
+        Returns
+        -------
+        PipelineResult
+            Pipeline output for the synthetic single-page document.
         """
         from .parser import ParsedDocument, ParsedPage
 

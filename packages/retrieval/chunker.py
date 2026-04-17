@@ -32,6 +32,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ChunkingConfig:
+    """Configuration for document chunk generation.
+
+    Parameters
+    ----------
+    target_tokens
+        Preferred token count for a prose chunk before overlap is applied.
+    overlap_tokens
+        Number of trailing tokens repeated into the next chunk.
+    min_tokens
+        Minimum prose chunk size before undersized fragments are merged forward.
+    max_table_tokens
+        Maximum approximate size allowed for a single table chunk.
+    sentence_boundary
+        Whether chunks should prefer sentence or paragraph boundaries over raw token cuts.
+    """
     target_tokens: int = 512     # ideal chunk size
     overlap_tokens: int = 64     # token overlap between adjacent chunks
     min_tokens: int = 50         # chunks below this are merged into the next
@@ -43,6 +58,29 @@ class ChunkingConfig:
 
 @dataclass
 class TextChunk:
+    """Chunked document segment produced by the retrieval pipeline.
+
+    Parameters
+    ----------
+    chunk_index
+        Zero-based index of the chunk within the document.
+    text
+        Chunk text payload.
+    token_count
+        Approximate token count for the chunk.
+    section_title
+        Closest heading title associated with the chunk, if any.
+    heading_path
+        Hierarchical heading path from outermost to innermost section.
+    page_start
+        First source page contributing text to the chunk.
+    page_end
+        Last source page contributing text to the chunk.
+    source_hash
+        Stable hash of the chunk text for traceability and deduplication.
+    is_table_chunk
+        Indicates whether the chunk originated from a table block.
+    """
     chunk_index: int
     text: str
     token_count: int
@@ -366,15 +404,19 @@ def chunk_document(
     pages: list[ParsedPage],
     config: ChunkingConfig | None = None,
 ) -> list[TextChunk]:
-    """
-    Produce token-bounded, section-aware chunks from a parsed document.
+    """Split parsed pages into retrieval-ready text chunks.
 
-    Args:
-        pages: Output of ``parser.parse_pdf().pages``.
-        config: Chunking parameters. Defaults to ``ChunkingConfig()``.
+    Parameters
+    ----------
+    pages
+        Parsed pages from :func:`packages.retrieval.parser.parse_pdf`.
+    config
+        Chunking parameters. Defaults to :class:`ChunkingConfig` values when omitted.
 
-    Returns:
-        Ordered list of ``TextChunk`` objects ready for embedding.
+    Returns
+    -------
+    list[TextChunk]
+        Chunked document segments preserving page and heading metadata.
     """
     cfg = config or ChunkingConfig()
     tok = _get_tokenizer()

@@ -1,5 +1,5 @@
 # ── Dev override ──────────────────────────────────────────────────────────────
-# Extends docker-compose.yml with bind-mounted source and hot-reload commands.
+# Extends docker-compose.yaml with bind-mounted source and hot-reload commands.
 # Use via the Makefile:  make dev   (not directly)
 #
 # What changes vs production:
@@ -8,11 +8,11 @@
 #   web     — source bind-mounted + next dev (auto-reloads on .ts/.tsx saves)
 #
 # What stays the same:
-#   db / redis / volumes — identical to production compose
+#   db / redis / named volumes — identical to production compose
 
 services:
 
-  # ── API (hot reload) ──────────────────────────────────────────────────────
+  # ── API (hot reload) ──────────────────────────────────────────────────────────
   api:
     environment:
       APP_ENV: development
@@ -20,8 +20,8 @@ services:
     # always readable/writable inside the container.
     user: root
     volumes:
-      - ../../apps/api:/app
-      - ../../packages:/app/packages
+      - ../apps/api:/app
+      - ../packages:/app/packages
       - uploads:/data/uploads
       - bm25indexes:/data/indexes
     command: >
@@ -32,26 +32,26 @@ services:
         --reload-dir /app/app
         --reload-dir /app/packages
 
-  # ── Worker (bind-mounted; restart manually on code changes) ───────────────
+  # ── Worker (bind-mounted; restart manually on code changes) ──────────────────
   worker:
     environment:
       APP_ENV: development
     user: root
     volumes:
-      - ../../apps/worker:/app
+      - ../apps/worker:/app
       # Expose the API models at the same path the production image uses
-      - ../../apps/api:/app/apps/api
-      - ../../packages:/app/packages
+      - ../apps/api:/app/apps/api
+      - ../packages:/app/packages
       - uploads:/data/uploads
       - bm25indexes:/data/indexes
 
-  # ── Web (Next.js dev server with HMR) ────────────────────────────────────
+  # ── Web (Next.js dev server with HMR) ─────────────────────────────────────────
   web:
     build:
-      context: ../..
+      context: ..
       dockerfile: infra/docker/Dockerfile.web.dev
     volumes:
-      - ../../apps/web:/app
+      - ../apps/web:/app
       # Named volume keeps node_modules across restarts; avoids re-running
       # npm install from scratch every time the container starts.
       - web_dev_node_modules:/app/node_modules

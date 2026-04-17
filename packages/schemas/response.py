@@ -20,6 +20,8 @@ class CitationRead(BaseModel):
 
 
 class ResponseCreate(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     query_id: UUID
     model_name: str
     prompt_version: str
@@ -33,11 +35,11 @@ class ResponseCreate(BaseModel):
 
 
 class ResponseRead(ResponseCreate):
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
+
     id: UUID
     citations: list[CitationRead] = Field(default_factory=list)
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class AnswerPayload(BaseModel):

@@ -31,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DenseHit:
+    """Dense retrieval result enriched with document metadata.
+
+    Parameters
+    ----------
+    chunk_id
+        Identifier of the matched chunk.
+    document_id
+        Identifier of the parent document.
+    score
+        Cosine-similarity score where higher is more similar.
+    text
+        Chunk text returned to the caller.
+    section_title
+        Section heading associated with the chunk, if available.
+    heading_path
+        Hierarchical heading path for the chunk.
+    page_start
+        First page number contributing to the chunk.
+    page_end
+        Last page number contributing to the chunk.
+    document_title
+        Human-readable document title, when loaded from the database.
+    source
+        Retrieval source label such as ``"dense"``, ``"sparse"``, or ``"hybrid"``.
+    """
     chunk_id: uuid.UUID
     document_id: uuid.UUID
     score: float            # cosine similarity in [0, 1]; higher = more similar
@@ -69,18 +94,25 @@ class DenseRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
-        """
-        Async nearest-neighbour search.
+        """Run async nearest-neighbour search over embedded chunks.
 
-        Args:
-            query: Free-text query string.
-            db: Open ``AsyncSession``.
-            top_k: Maximum number of results.
-            document_ids: Restrict search to these document UUIDs.
-            document_type_filter: Restrict by document type enum values.
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy async session.
+        top_k
+            Maximum number of results to return.
+        document_ids
+            Optional document identifiers used to constrain the search space.
+        document_type_filter
+            Optional document type values used to filter joined document rows.
 
-        Returns:
-            List of ``DenseHit`` sorted by descending cosine similarity.
+        Returns
+        -------
+        list[DenseHit]
+            Ranked dense retrieval hits sorted by descending similarity.
         """
         query_vec = self.embedder.embed_single(query)
         stmt = self._build_stmt(query_vec, top_k, document_ids, document_type_filter)
@@ -97,7 +129,26 @@ class DenseRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
-        """Synchronous variant for Celery tasks and unit tests."""
+        """Run synchronous nearest-neighbour search.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy sync session.
+        top_k
+            Maximum number of results to return.
+        document_ids
+            Optional document identifiers used to constrain the search space.
+        document_type_filter
+            Optional document type values used to filter joined document rows.
+
+        Returns
+        -------
+        list[DenseHit]
+            Ranked dense retrieval hits sorted by descending similarity.
+        """
         query_vec = self.embedder.embed_single(query)
         stmt = self._build_stmt(query_vec, top_k, document_ids, document_type_filter)
         result = db.execute(stmt)

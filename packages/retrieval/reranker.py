@@ -51,11 +51,21 @@ class BaseReranker(ABC):
         hits: list[DenseHit],
         top_n: int,
     ) -> list[DenseHit]:
-        """
-        Re-score *hits* for *query* and return the top *top_n* sorted by
-        descending relevance.
+        """Rerank retrieved hits for a query.
 
-        The input hits are mutated in-place (score and source updated).
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        hits
+            Candidate hits to rerank in place.
+        top_n
+            Maximum number of reranked hits to return.
+
+        Returns
+        -------
+        list[DenseHit]
+            Top reranked hits sorted by descending relevance.
         """
 
 
@@ -197,20 +207,26 @@ def get_reranker(
     model: str | None = None,
     **kwargs,
 ) -> BaseReranker:
-    """
-    Factory for rerankers.
+    """Create a reranker backend.
 
-    Args:
-        backend: ``"cross-encoder"`` | ``"cohere"`` | ``"none"``
-        model: Model name override.
-        **kwargs: Passed to the reranker constructor.
+    Parameters
+    ----------
+    backend
+        Backend name. Supported values are ``"cross-encoder"``, ``"cohere"``, and ``"none"``.
+    model
+        Optional backend-specific model override.
+    **kwargs
+        Additional keyword arguments forwarded to the backend constructor.
 
-    Examples::
+    Returns
+    -------
+    BaseReranker
+        Configured reranker implementation.
 
-        get_reranker("cross-encoder")
-        get_reranker("cross-encoder", model="BAAI/bge-reranker-base")
-        get_reranker("cohere", model="rerank-english-v3.0")
-        get_reranker("none")   # IdentityReranker — no reranking
+    Raises
+    ------
+    ValueError
+        If ``backend`` is not a supported reranker type.
     """
     if backend == "cross-encoder":
         return CrossEncoderReranker(

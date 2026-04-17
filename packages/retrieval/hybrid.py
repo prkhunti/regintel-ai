@@ -42,6 +42,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HybridConfig:
+    """Configuration for fusing dense and sparse retrieval results.
+
+    Parameters
+    ----------
+    fusion
+        Fusion strategy. Supported values are ``"rrf"`` and ``"weighted"``.
+    alpha
+        Dense-score weight used when ``fusion="weighted"``.
+    rrf_k
+        Reciprocal-rank-fusion constant controlling top-rank emphasis.
+    dense_top_k
+        Number of dense candidates retrieved before fusion.
+    sparse_top_k
+        Number of sparse candidates retrieved before fusion.
+    """
     fusion: str = "rrf"      # "rrf" | "weighted"
     alpha: float = 0.7       # dense weight in weighted mode (sparse = 1 - alpha)
     rrf_k: int = 60          # RRF constant — higher k reduces the impact of top ranks
@@ -82,18 +97,25 @@ class HybridRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
-        """
-        Run both retrievers concurrently and return fused results.
+        """Run dense and sparse retrieval concurrently and fuse the outputs.
 
-        Args:
-            query: Free-text query string.
-            db: Open ``AsyncSession``.
-            top_k: Final result count after fusion.
-            document_ids: Restrict both retrievers to these document UUIDs.
-            document_type_filter: Restrict by document type.
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy async session.
+        top_k
+            Final number of fused hits to return.
+        document_ids
+            Optional document identifiers applied to both retrievers.
+        document_type_filter
+            Optional document type filter applied to both retrievers.
 
-        Returns:
-            Fused, ranked list of ``DenseHit`` with ``source="hybrid"``.
+        Returns
+        -------
+        list[DenseHit]
+            Fused hits tagged with ``source="hybrid"``.
         """
         cfg = self.config
 
@@ -118,7 +140,26 @@ class HybridRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
-        """Synchronous variant — runs retrievers sequentially."""
+        """Run dense and sparse retrieval sequentially and fuse the outputs.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy sync session.
+        top_k
+            Final number of fused hits to return.
+        document_ids
+            Optional document identifiers applied to both retrievers.
+        document_type_filter
+            Optional document type filter applied to both retrievers.
+
+        Returns
+        -------
+        list[DenseHit]
+            Fused hits tagged with ``source="hybrid"``.
+        """
         cfg = self.config
         dense_hits = self.dense.search_sync(query, db, cfg.dense_top_k, document_ids, document_type_filter)
         sparse_hits = self.sparse.search_sync(query, db, cfg.sparse_top_k, document_ids, document_type_filter)

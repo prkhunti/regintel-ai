@@ -2,13 +2,13 @@
         env \
         up up-build down down-v build logs logs-api logs-worker \
         dev dev-build dev-down dev-logs dev-logs-api dev-logs-worker dev-restart-worker \
-        migrate migrate-new db-shell redis-cli \
+        migrate migrate-new db-shell redis-cli shell-api \
         test test-unit test-integration test-eval \
         lint format typecheck eval clean
 
-COMPOSE     := docker compose -f infra/docker/docker-compose.yml
-COMPOSE_DEV := docker compose -f infra/docker/docker-compose.yml \
-                              -f infra/docker/docker-compose.dev.yml
+COMPOSE     := docker compose -f infra/docker-compose.yaml
+COMPOSE_DEV := docker compose -f infra/docker-compose.yaml \
+                              -f infra/docker-compose.dev.yaml
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show this help
@@ -83,9 +83,12 @@ db-shell: ## Open a psql shell
 redis-cli: ## Open a Redis CLI
 	$(COMPOSE) exec redis redis-cli
 
+shell-api: ## Open a shell inside the API container
+	$(COMPOSE) exec api /bin/bash
+
 # ── Testing ───────────────────────────────────────────────────────────────────
 test: ## Run all tests inside the API container
-	$(COMPOSE) exec api python -m pytest tests/ -v -p no:cacheprovider
+	$(COMPOSE) exec api python -m pytest tests/unit/ tests/eval/ -v -p no:cacheprovider
 
 test-unit: ## Run unit tests (chunker, retrieval, confidence — no DB or API key)
 	$(COMPOSE) exec api python -m pytest tests/unit/ -v -p no:cacheprovider

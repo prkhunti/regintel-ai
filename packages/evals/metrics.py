@@ -19,12 +19,21 @@ from dataclasses import dataclass, field
 # ── Individual metrics ────────────────────────────────────────────────────────
 
 def recall_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-    """
-    Fraction of relevant documents found in the top-k results.
+    """Compute recall at rank ``k``.
 
-        Recall@k = |retrieved[:k] ∩ relevant| / |relevant|
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
+    k
+        Depth cutoff applied to ``retrieved``.
 
-    Returns 0.0 when *relevant* is empty.
+    Returns
+    -------
+    float
+        Fraction of relevant identifiers present in the top-``k`` retrieved results.
     """
     if not relevant:
         return 0.0
@@ -33,12 +42,21 @@ def recall_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
 
 
 def precision_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-    """
-    Fraction of the top-k results that are relevant.
+    """Compute precision at rank ``k``.
 
-        Precision@k = |retrieved[:k] ∩ relevant| / k
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
+    k
+        Depth cutoff applied to ``retrieved``.
 
-    Returns 0.0 when k == 0.
+    Returns
+    -------
+    float
+        Fraction of the top-``k`` retrieved identifiers that are relevant.
     """
     if k == 0:
         return 0.0
@@ -47,20 +65,39 @@ def precision_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
 
 
 def hit_rate_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-    """
-    1.0 if at least one relevant document appears in the top-k results, else 0.0.
-    Also known as Recall@k with |relevant|=1, but useful as a standalone signal.
+    """Compute hit rate at rank ``k``.
+
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
+    k
+        Depth cutoff applied to ``retrieved``.
+
+    Returns
+    -------
+    float
+        ``1.0`` when at least one relevant identifier appears in the top-``k`` results, else ``0.0``.
     """
     return 1.0 if any(r in relevant for r in retrieved[:k]) else 0.0
 
 
 def mrr(retrieved: list[str], relevant: set[str]) -> float:
-    """
-    Mean Reciprocal Rank for a single query.
+    """Compute reciprocal rank for a single query.
 
-        MRR = 1 / rank_of_first_relevant
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
 
-    rank is 1-based.  Returns 0.0 if no relevant document is retrieved.
+    Returns
+    -------
+    float
+        Reciprocal of the first relevant rank, or ``0.0`` when no relevant item is retrieved.
     """
     for rank, r in enumerate(retrieved, start=1):
         if r in relevant:
@@ -69,13 +106,19 @@ def mrr(retrieved: list[str], relevant: set[str]) -> float:
 
 
 def average_precision(retrieved: list[str], relevant: set[str]) -> float:
-    """
-    Average Precision (AP) for a single query — area under the P-R curve.
+    """Compute average precision for a single query.
 
-        AP = (1/|relevant|) * Σ Precision@k * rel(k)
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
 
-    where rel(k) = 1 if the k-th retrieved item is relevant, else 0.
-    Returns 0.0 when *relevant* is empty.
+    Returns
+    -------
+    float
+        Average precision over the ranked list, or ``0.0`` when ``relevant`` is empty.
     """
     if not relevant:
         return 0.0
@@ -89,14 +132,21 @@ def average_precision(retrieved: list[str], relevant: set[str]) -> float:
 
 
 def ndcg_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-    """
-    Normalised Discounted Cumulative Gain at depth k.
+    """Compute binary NDCG at rank ``k``.
 
-    Binary relevance: rel(i) = 1 if retrieved[i] ∈ relevant, else 0.
+    Parameters
+    ----------
+    retrieved
+        Ranked retrieved chunk identifiers.
+    relevant
+        Set of known relevant chunk identifiers.
+    k
+        Depth cutoff applied to ``retrieved``.
 
-        DCG@k  = Σ rel(i) / log2(i + 2)   (i is 0-based)
-        IDCG@k = Σ 1      / log2(i + 2)   for min(|relevant|, k) ideal results
-        NDCG@k = DCG@k / IDCG@k
+    Returns
+    -------
+    float
+        Normalised discounted cumulative gain for the top-``k`` results.
     """
     if not relevant or k == 0:
         return 0.0
@@ -115,7 +165,39 @@ def ndcg_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
 
 @dataclass
 class RetrievalMetrics:
-    """Aggregate metrics across a set of queries."""
+    """Macro-averaged retrieval metrics across a query set.
+
+    Parameters
+    ----------
+    num_queries
+        Number of queries included in the aggregate.
+    recall_at_1
+        Mean recall at rank 1.
+    recall_at_5
+        Mean recall at rank 5.
+    recall_at_10
+        Mean recall at rank 10.
+    precision_at_1
+        Mean precision at rank 1.
+    precision_at_5
+        Mean precision at rank 5.
+    precision_at_10
+        Mean precision at rank 10.
+    hit_rate_at_5
+        Mean hit rate at rank 5.
+    hit_rate_at_10
+        Mean hit rate at rank 10.
+    mrr
+        Mean reciprocal rank.
+    map_score
+        Mean average precision.
+    ndcg_at_5
+        Mean NDCG at rank 5.
+    ndcg_at_10
+        Mean NDCG at rank 10.
+    per_query
+        Optional per-query metric breakdowns.
+    """
     num_queries: int = 0
     recall_at_1: float = 0.0
     recall_at_5: float = 0.0
@@ -163,14 +245,17 @@ class RetrievalMetrics:
 def compute_all(
     results: list[tuple[list[str], set[str]]],
 ) -> RetrievalMetrics:
-    """
-    Compute aggregate retrieval metrics over a set of queries.
+    """Aggregate retrieval metrics over multiple queries.
 
-    Args:
-        results: List of (retrieved_ids, relevant_ids) pairs — one per query.
+    Parameters
+    ----------
+    results
+        List of ``(retrieved_ids, relevant_ids)`` pairs, one entry per query.
 
-    Returns:
-        ``RetrievalMetrics`` with macro-averaged scores.
+    Returns
+    -------
+    RetrievalMetrics
+        Macro-averaged retrieval metrics and optional per-query breakdowns.
     """
     n = len(results)
     if n == 0:

@@ -55,10 +55,17 @@ class BM25IndexRegistry:
 
     @property
     def index(self) -> BM25Index:
+        """Return the merged in-memory BM25 index."""
         return self._index
 
     def load_all(self) -> int:
-        """Scan directory, merge all .bm25.pkl files. Returns number of docs loaded."""
+        """Load and merge all saved BM25 shard files.
+
+        Returns
+        -------
+        int
+            Number of BM25 pickle files discovered in the index directory.
+        """
         pkl_files = sorted(self._dir.glob("*.bm25.pkl"))
         if not pkl_files:
             logger.warning("BM25IndexRegistry: no index files found in %s", self._dir)
@@ -84,7 +91,13 @@ class BM25IndexRegistry:
         return len(pkl_files)
 
     def refresh(self) -> int:
-        """Reload all indices — call after a new document finishes ingestion."""
+        """Reload all BM25 shard files from disk.
+
+        Returns
+        -------
+        int
+            Number of BM25 pickle files discovered in the index directory.
+        """
         return self.load_all()
 
 
@@ -116,6 +129,26 @@ class SparseRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
+        """Run async sparse retrieval and hydrate hits from the database.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy async session.
+        top_k
+            Maximum number of hydrated hits to return.
+        document_ids
+            Optional document identifiers used to constrain the result set.
+        document_type_filter
+            Optional document type values used to filter joined document rows.
+
+        Returns
+        -------
+        list[DenseHit]
+            Sparse hits normalised to the ``DenseHit`` shape with scores scaled to ``[0, 1]``.
+        """
         raw = self.index.search(query, top_k=top_k * 2)  # over-fetch before filter
         if not raw:
             return []
@@ -135,6 +168,26 @@ class SparseRetriever:
         document_ids: list[uuid.UUID] | None = None,
         document_type_filter: list[str] | None = None,
     ) -> list[DenseHit]:
+        """Run synchronous sparse retrieval and hydrate hits from the database.
+
+        Parameters
+        ----------
+        query
+            Free-text query string.
+        db
+            Open SQLAlchemy sync session.
+        top_k
+            Maximum number of hydrated hits to return.
+        document_ids
+            Optional document identifiers used to constrain the result set.
+        document_type_filter
+            Optional document type values used to filter joined document rows.
+
+        Returns
+        -------
+        list[DenseHit]
+            Sparse hits normalised to the ``DenseHit`` shape with scores scaled to ``[0, 1]``.
+        """
         raw = self.index.search(query, top_k=top_k * 2)
         if not raw:
             return []

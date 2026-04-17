@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Redis ────────────────────────────────────────────────────────────────────
+  # ── Redis ─────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -32,13 +32,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── API ──────────────────────────────────────────────────────────────────────
+  # ── API ───────────────────────────────────────────────────────────────────────
   api:
     build:
-      context: ../..
+      context: ..
       dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
-    env_file: ../../.env
+    env_file: ../.env
     environment:
       PYTHONPATH: /app
       UPLOAD_DIR: /data/uploads
@@ -56,14 +56,20 @@ services:
     volumes:
       - uploads:/data/uploads
       - bm25indexes:/data/indexes
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
-  # ── Worker ───────────────────────────────────────────────────────────────────
+  # ── Worker ────────────────────────────────────────────────────────────────────
   worker:
     build:
-      context: ../..
+      context: ..
       dockerfile: infra/docker/Dockerfile.worker
     restart: unless-stopped
-    env_file: ../../.env
+    env_file: ../.env
     environment:
       PYTHONPATH: /app
       UPLOAD_DIR: /data/uploads
@@ -80,15 +86,15 @@ services:
       - uploads:/data/uploads
       - bm25indexes:/data/indexes
 
-  # ── Web ──────────────────────────────────────────────────────────────────────
+  # ── Web ───────────────────────────────────────────────────────────────────────
   web:
     build:
-      context: ../..
+      context: ..
       dockerfile: infra/docker/Dockerfile.web
     restart: unless-stopped
-    env_file: ../../.env
+    env_file: ../.env
     environment:
-      # API_URL is already baked into the image via Dockerfile ENV.
+      # API_URL is baked into the image via Dockerfile ENV.
       # Override here only if you point the web container at a different API host.
       API_URL: http://api:8000
     ports:

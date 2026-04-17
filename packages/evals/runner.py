@@ -44,7 +44,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EvalCaseInput:
-    """Flat representation of an eval case passed to the runner."""
+    """Flat eval-case input consumed by :class:`EvalRunner`.
+
+    Parameters
+    ----------
+    id
+        Stable identifier for the eval case.
+    query
+        User query to run through retrieval and generation.
+    expected_chunk_ids
+        Chunk identifiers treated as relevant for retrieval scoring.
+    is_insufficient
+        Indicates whether the gold answer should be a refusal.
+    notes
+        Optional free-form evaluator notes.
+    """
     id: str
     query: str
     expected_chunk_ids: list[str]   # string IDs (as stored in DB / gold set)
@@ -54,6 +68,33 @@ class EvalCaseInput:
 
 @dataclass
 class CaseResult:
+    """Per-case evaluation output.
+
+    Parameters
+    ----------
+    case_id
+        Stable identifier of the eval case.
+    query
+        Query text used for the evaluation.
+    retrieved_ids
+        Retrieved chunk identifiers in ranked order.
+    cited_ids
+        Chunk identifiers cited by the generated answer.
+    refused
+        Indicates whether the generator refused to answer.
+    recall_at_10
+        Recall at rank 10 for retrieved chunks.
+    precision_at_10
+        Precision at rank 10 for retrieved chunks.
+    mrr
+        Reciprocal rank for the first relevant retrieved chunk.
+    citation_recall
+        Fraction of expected chunks that were cited in the answer.
+    refusal_correct
+        Whether the refusal decision matched the gold label.
+    latency_ms
+        End-to-end latency for the case in milliseconds.
+    """
     case_id: str
     query: str
     retrieved_ids: list[str]
@@ -74,6 +115,31 @@ class CaseResult:
 
 @dataclass
 class EvalRunResult:
+    """Aggregate evaluation output for a batch of cases.
+
+    Parameters
+    ----------
+    label
+        Human-readable label for the eval run.
+    model_name
+        Model or system name under evaluation.
+    total_cases
+        Number of cases included in the run.
+    recall_at_10
+        Mean recall at rank 10.
+    precision_at_10
+        Mean precision at rank 10.
+    mrr
+        Mean reciprocal rank.
+    citation_recall
+        Mean citation recall across generated answers.
+    refusal_accuracy
+        Fraction of cases where refusal behaviour matched expectations.
+    mean_latency_ms
+        Mean end-to-end latency across all cases.
+    per_case
+        Detailed results for each eval case.
+    """
     label: str
     model_name: str
     total_cases: int
@@ -139,6 +205,22 @@ class EvalRunner:
         label: str,
         model_name: str,
     ) -> EvalRunResult:
+        """Run retrieval and generation evaluation across multiple cases.
+
+        Parameters
+        ----------
+        cases
+            Eval cases to execute.
+        label
+            Human-readable label for the run.
+        model_name
+            Model or system name associated with the run.
+
+        Returns
+        -------
+        EvalRunResult
+            Aggregate evaluation metrics and per-case outputs.
+        """
         if not cases:
             return EvalRunResult(
                 label=label,

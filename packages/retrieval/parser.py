@@ -27,6 +27,19 @@ _HEADING_PATTERNS = [
 
 @dataclass
 class ParsedPage:
+    """Structured representation of a single parsed PDF page.
+
+    Parameters
+    ----------
+    page_number
+        One-based page number from the source PDF.
+    text
+        Extracted plain text for the page, including appended table text when present.
+    tables
+        Raw table cells extracted from the page.
+    via_ocr
+        Indicates whether OCR output replaced the page's native text extraction.
+    """
     page_number: int        # 1-based
     text: str
     tables: list[list[list[str]]] = field(default_factory=list)
@@ -35,6 +48,17 @@ class ParsedPage:
 
 @dataclass
 class ParsedDocument:
+    """Container for parser output across all pages in a document.
+
+    Parameters
+    ----------
+    pages
+        Parsed pages in original document order.
+    checksum
+        SHA-256 checksum of the input file contents.
+    page_count
+        Total number of pages in the parsed document.
+    """
     pages: list[ParsedPage]
     checksum: str
     page_count: int
@@ -109,15 +133,24 @@ def _table_to_text(table: list[list[str]]) -> str:
 
 
 def parse_pdf(path: Path, ocr_threshold: int = 50) -> ParsedDocument:
-    """
-    Parse a PDF file into structured pages.
+    """Parse a PDF file into structured pages.
 
-    Args:
-        path: Absolute path to the PDF file.
-        ocr_threshold: Pages with fewer than this many characters trigger OCR.
+    Parameters
+    ----------
+    path
+        Absolute path to the PDF file.
+    ocr_threshold
+        Minimum native text length required to skip OCR for a page.
 
-    Returns:
-        ParsedDocument with per-page text and tables.
+    Returns
+    -------
+    ParsedDocument
+        Parsed document containing per-page text, tables, and checksum metadata.
+
+    Raises
+    ------
+    RuntimeError
+        If ``pdfplumber`` is not installed in the current environment.
     """
     try:
         import pdfplumber
@@ -156,12 +189,18 @@ def parse_pdf(path: Path, ocr_threshold: int = 50) -> ParsedDocument:
 
 
 def detect_headings(text: str) -> list[tuple[int, str, str]]:
-    """
-    Scan text for heading lines.
+    """Detect likely section headings in parsed text.
 
-    Returns:
-        List of (line_index, heading_level, heading_text) where heading_level
-        is "h1" | "h2" | "h3" based on pattern matched.
+    Parameters
+    ----------
+    text
+        Plain-text content to scan line by line.
+
+    Returns
+    -------
+    list[tuple[int, str, str]]
+        Tuples of ``(line_index, heading_level, heading_text)`` where
+        ``heading_level`` is ``"h1"``, ``"h2"``, or ``"h3"``.
     """
     results = []
     for line_idx, line in enumerate(text.splitlines()):
