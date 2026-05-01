@@ -1,275 +1,235 @@
 # RegIntel AI
 
-**Audit-ready clinical document intelligence for regulated medical device environments.**
+Audit-ready clinical document intelligence for regulated AI workflows.
 
-RegIntel ingests clinical and regulatory documents (CERs, risk management files, IFUs, software requirements), retrieves grounded evidence with hybrid search, generates traceable answers with inline citations, scores confidence, and maintains a full immutable audit trail. Every design decision reflects the constraints of high-trust, regulated AI — where hallucinations, traceability failures, and undetected refusals are unacceptable.
+RegIntel AI is a portfolio / reference implementation of a document intelligence system for clinical and regulatory documents. It ingests documents, chunks and indexes source evidence, answers questions with citations, assigns confidence and risk signals, and records audit events for traceability.
 
----
+> This repository is published as a portfolio and reference implementation. It is not currently accepting external contributions, and it should not be treated as a certified medical, regulatory, or production deployment.
+
+## Problem
+
+Clinical and regulatory teams need document question-answering systems that preserve provenance. A useful answer is not enough: reviewers need to know which source chunks support the answer, whether evidence was insufficient, how confident the system was, and what happened during ingestion, query, and evaluation flows.
+
+RegIntel AI demonstrates one approach to that problem with a small, inspectable stack:
+
+- document ingestion with PDF parsing, OCR fallback, and section-aware chunking
+- hybrid retrieval using dense vectors, BM25, reciprocal rank fusion, and optional reranking
+- structured answer generation with citation mapping and refusal support
+- confidence scoring from retrieval, citation, and coverage signals
+- audit events for important document, query, and evaluation actions
+- offline evaluation utilities for retrieval and answer quality checks
+
+## Key Features
+
+- **Document ingestion**: asynchronous Celery ingestion for uploaded documents, PDF parsing through `pdfplumber`, optional OCR fallback, and table-aware chunking.
+- **Evidence retrieval**: pgvector-backed dense retrieval, BM25 sparse retrieval, hybrid fusion, and pluggable reranker backends.
+- **Grounded answers**: provider abstraction for OpenAI, Anthropic, and mock local mode, with Pydantic-validated structured output.
+- **Confidence and risk**: scoring based on top retrieved evidence, citation density, retrieval score, and answer coverage.
+- **Audit trail**: persisted events for uploads, processing, answer generation or refusal, and evaluation runs.
+- **Evaluation harness**: pytest-backed retrieval quality checks and reusable metric code for recall, precision, MRR, citation recall, and refusal accuracy.
+- **Web UI**: Next.js interface for querying, document workflows, audit inspection, and evaluation views.
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                          Client (Next.js)                       │
-│         Query UI  ·  Audit Log  ·  Evaluation Dashboard         │
+│                         Next.js web app                         │
+│        Query UI · Documents · Audit Log · Evaluation UI         │
 └────────────────────────────┬────────────────────────────────────┘
                              │ REST
 ┌────────────────────────────▼────────────────────────────────────┐
-│                      FastAPI  (apps/api)                        │
-│  /documents  ·  /query  ·  /audit/events  ·  /eval/runs        │
+│                        FastAPI service                          │
+│   /documents · /query · /audit/events · /eval/runs · /health    │
 └──────┬────────────────┬───────────────────────┬─────────────────┘
        │                │                       │
 ┌──────▼──────┐  ┌──────▼──────┐        ┌──────▼──────┐
-│  Ingestion  │  │  Retrieval  │        │  LLM Client │
-│   Worker    │  │   Engine    │        │  (OpenAI /  │
-│  (Celery)   │  │             │        │  Anthropic) │
-└──────┬──────┘  │  Dense      │        └─────────────┘
-       │         │  Sparse     │
-       │         │  Hybrid RRF │
-       │         │  Reranker   │
-       │         └──────┬──────┘
+│   Celery    │  │  Retrieval  │        │  LLM client │
+│ ingestion   │  │  pipeline   │        │ OpenAI /    │
+│   worker    │  │ Dense+BM25  │        │ Anthropic / │
+└──────┬──────┘  │ Hybrid+rank │        │ mock        │
+       │         └──────┬──────┘        └─────────────┘
        │                │
 ┌──────▼────────────────▼──────────────────────────────┐
-│              PostgreSQL + pgvector  (+ Redis)        │
-│  documents · chunks · embeddings (HNSW) · queries   │
-│  responses · citations · eval_runs · audit_events   │
-└──────────────────────────────────────────────────────┘
+│                 PostgreSQL + pgvector                 │
+│ documents · chunks · embeddings · queries · answers   │
+│ citations · eval runs · audit events                  │
+└───────────────────────────────────────────────────────┘
 ```
 
----
+## Tech Stack
 
-## Features
+- **API**: Python 3.12, FastAPI, SQLAlchemy async, Alembic, Pydantic
+- **Worker**: Celery, Redis, pdfplumber, pytesseract, tiktoken
+- **Retrieval**: pgvector, BM25 (`rank-bm25`), reciprocal rank fusion, optional rerankers
+- **LLM providers**: OpenAI, Anthropic, mock mode for local development and CI
+- **Web**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Infrastructure**: Docker Compose, PostgreSQL 16 with pgvector, Redis
+- **Testing**: pytest, pytest-asyncio, ruff, mypy
 
-### Document ingestion
-- PDF parsing with `pdfplumber`; OCR fallback via `pytesseract` when extracted text falls below a configurable character threshold
-- Table-block protection — content between `[TABLE]…[/TABLE]` markers is kept as an atomic unit and never split mid-row
-- Section-aware chunking: sentence-boundary splits, heading inheritance, configurable token targets (`ChunkingConfig`)
-- Per-chunk provenance: `section_title`, `heading_path`, `page_start/end`, `token_count`, `source_hash`
-- Celery worker handles ingestion asynchronously; HTTP response is immediate (`202 Accepted`)
+## Repository Structure
 
-### Hybrid retrieval
-| Component | Implementation |
-|-----------|----------------|
-| Dense retrieval | pgvector `vector_cosine_ops` with HNSW index (`m=16, ef_construction=64`) |
-| Sparse retrieval | BM25 (`rank-bm25`) — per-document `.bm25.pkl` files, merged at query time |
-| Fusion | Reciprocal Rank Fusion (RRF) or weighted alpha blend |
-| Reranking | `CrossEncoderReranker` (sentence-transformers), `CohereReranker`, or `IdentityReranker` |
-
-Dense and sparse retrieval run concurrently with `asyncio.gather`. BM25 scores are normalised to [0, 1] before fusion.
-
-### Grounded answer generation
-- Provider-abstracted LLM client: **OpenAI** (JSON mode) and **Anthropic** (tool use) behind a common `BaseLLMClient` interface
-- Structured output via Pydantic — `StructuredAnswerOutput` validated before use; no regex parsing
-- Prompt (`answer_structured.txt`) enforces: cite every claim, refuse when context is insufficient, return empty answer on refusal
-- `AnswerGenerator` maps `CitationOutput.chunk_index` back to the source `DenseHit` for full provenance
-
-### Confidence scoring
-Four signals combined into a single `[0, 1]` score:
-
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| `top_chunk_score` | 0.30 | Max cosine similarity of the best retrieved chunk |
-| `citation_density` | 0.35 | Fraction of answer sentences containing at least one `[N]` marker |
-| `retrieval_score` | 0.25 | Mean score across the top-k chunks |
-| `coverage_ratio` | 0.10 | Fraction of answer content terms that appear in source chunks |
-
-Risk levels: `LOW` (≥ 0.75) · `MEDIUM` (≥ 0.50) · `HIGH` (≥ 0.30) · `CRITICAL` (< 0.30). Refusals short-circuit to `confidence=0.0, risk=CRITICAL`.
-
-### Audit trail
-- `audit_events` table records every significant system action: `document_uploaded`, `document_processed`, `answer_generated`, `answer_refused`, `eval_run_started`, `eval_run_completed`, `pii_detected`, `injection_detected`
-- Every event carries `event_type`, `resource_type`, `resource_id`, `actor`, `detail` (JSON), and `created_at`
-- `GET /api/v1/audit/events` supports filtering by event type, resource type, resource ID, and date range
-
-### Evaluation harness
-- `EvalCase` records store a query, expected chunk IDs, and an `is_insufficient` flag
-- `EvalRunner` runs the full pipeline (retrieve → generate → score) per case and returns aggregate metrics:
-  - **Retrieval**: Recall@10, Precision@10, MRR
-  - **Answer quality**: citation recall (fraction of expected chunks cited), refusal accuracy
-- `POST /api/v1/eval/runs` triggers a synchronous run and persists results to `eval_runs`
-- Offline pytest harness in `tests/eval/` covers BM25 quality, hybrid fusion quality, and metrics correctness against the gold query set
-
----
-
-## Repository structure
-
-```
+```text
 regintel-ai/
 ├── apps/
-│   ├── api/                    # FastAPI application
-│   │   ├── app/
-│   │   │   ├── models/         # SQLAlchemy ORM models
-│   │   │   ├── routers/        # documents · query · audit · eval
-│   │   │   └── services/       # answer_service · confidence · llm_client · document_service
-│   │   └── migrations/         # Alembic (001 schema, 002 HNSW index)
-│   ├── web/                    # Next.js 15 frontend (TypeScript + Tailwind)
-│   │   └── src/
-│   │       ├── pages/          # index (query) · audit · eval
-│   │       ├── components/     # AnswerCard · CitationList · ConfidenceBadge
-│   │       └── lib/api.ts      # typed fetch client
-│   └── worker/                 # Celery ingestion worker
-│       └── tasks/ingestion.py
+│   ├── api/                 # FastAPI app, routers, services, models, migrations
+│   ├── web/                 # Next.js UI
+│   └── worker/              # Celery ingestion worker
 ├── packages/
-│   ├── retrieval/              # chunker · parser · dense · sparse · hybrid · reranker · embedder
-│   ├── evals/                  # metrics · runner
-│   ├── schemas/                # Pydantic schemas (document · query · response · eval · audit · llm_output)
-│   └── prompts/templates/      # answer_structured.txt · answer_grounded.txt
+│   ├── retrieval/           # parsing, chunking, dense/sparse retrieval, fusion, reranking
+│   ├── evals/               # evaluation runner and metrics
+│   ├── schemas/             # shared Pydantic schemas
+│   └── prompts/templates/   # answer prompts
 ├── data/
-│   └── gold_queries/
-│       └── sample_queries.json # 12 corpus chunks + 15 labelled queries for offline eval
-├── tests/
-│   ├── unit/                   # test_chunker · test_retrieval · test_confidence
-│   └── eval/                   # test_retrieval_quality (BM25 + hybrid + metrics)
-└── infra/
-    └── docker/                 # docker-compose.yml · Dockerfile.api · Dockerfile.worker
+│   ├── gold_queries/        # small offline eval fixture set
+│   └── sample_docs/         # sample local documents
+├── docs/
+│   ├── architecture/        # architecture notes and diagrams (placeholder)
+│   ├── decisions/           # ADRs / design notes (placeholder)
+│   ├── eval-results/        # generated eval outputs, ignored by default
+│   └── threat-model/        # threat model notes (placeholder)
+├── infra/
+│   ├── docker/              # Dockerfiles
+│   ├── docker-compose.yaml  # base Compose stack
+│   └── docker-compose.dev.yaml
+├── scripts/                 # local development helpers
+├── tests/                   # unit, integration, and eval tests
+├── Makefile                 # common local commands
+└── pyproject.toml           # Python dependency groups and tool config
 ```
 
----
-
-## API reference
-
-### Documents
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/documents/upload` | Upload a PDF; enqueues ingestion |
-| `POST` | `/api/v1/documents/{id}/process` | Re-trigger ingestion |
-| `GET`  | `/api/v1/documents` | List all documents |
-| `GET`  | `/api/v1/documents/{id}` | Document detail + chunk count |
-| `GET`  | `/api/v1/documents/{id}/chunks` | Paginated chunk list |
-
-### Query
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/query` | Full pipeline: retrieve → rerank → generate → score → persist |
-| `GET`  | `/api/v1/query/{id}` | Fetch stored query by ID |
-
-### Audit
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET`  | `/api/v1/audit/events` | Paginated event list (filterable) |
-| `GET`  | `/api/v1/audit/events/count` | Count matching events |
-| `GET`  | `/api/v1/audit/events/{id}` | Single event |
-
-### Evaluation
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/eval/cases` | Create an eval case |
-| `GET`  | `/api/v1/eval/cases` | List eval cases |
-| `DELETE` | `/api/v1/eval/cases/{id}` | Delete a case |
-| `POST` | `/api/v1/eval/runs` | Trigger a run over all (or selected) cases |
-| `GET`  | `/api/v1/eval/runs` | List completed runs |
-| `GET`  | `/api/v1/eval/runs/{id}` | Run detail |
-
----
-
-## Local setup
+## Local Setup
 
 ### Prerequisites
 
-- Docker Desktop (includes Docker Compose v2)
+- Docker Desktop with Docker Compose v2
+- `make`
+- Optional for non-Docker Python workflows: Python 3.12
+- Optional for non-Docker web workflows: Node.js 20+
 
-### First-time setup
+### First Run
 
 ```bash
 git clone https://github.com/your-username/regintel-ai.git
 cd regintel-ai
-make env          # copies .env.example → .env
+make env
+make up-build
+make migrate
 ```
 
-Open `.env` and set your API keys when you have them.
-`LLM_PROVIDER=random` is the default — the full ingestion pipeline runs
-with deterministic random embeddings and a mock LLM so you can develop and
-test without any API credits.
+Then open:
 
-### Production mode (baked images, no bind mounts)
+- Web app: <http://localhost:3000>
+- API docs: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/api/v1/health>
+
+The default `.env.example` uses `LLM_PROVIDER=random`, which routes LLM calls to a mock client and embeddings to deterministic random vectors. This keeps the stack runnable without API keys for inspection and local development. Use real provider keys only when you intend to call external APIs.
+
+### Development Mode
 
 ```bash
-make up-build     # build images and start all 5 services
-make migrate      # run database migrations (first time only)
-# Web UI  → http://localhost:3000
-# API docs → http://localhost:8000/docs
+make dev
+make migrate
 ```
 
-### Dev mode (bind-mounted source + hot reload)
+Development mode bind-mounts the source tree and enables hot reload for FastAPI and Next.js. Worker code changes require a worker restart:
 
 ```bash
-make dev          # build dev images and start the dev stack
-make migrate      # run migrations if not already done
-# Web UI  → http://localhost:3000  (Next.js HMR active)
-# API docs → http://localhost:8000/docs  (uvicorn --reload active)
+make dev-restart-worker
 ```
 
-- `apps/api/**/*.py` changes reload uvicorn automatically.
-- `apps/web/**/*.tsx` changes reload Next.js automatically.
-- `apps/worker/**/*.py` changes require `make dev-restart-worker`.
+## Environment Variables
+
+Copy `.env.example` to `.env` with `make env`. The main variables are:
+
+| Variable | Purpose |
+| --- | --- |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | PostgreSQL container credentials for local Compose |
+| `DATABASE_URL` | SQLAlchemy async database URL |
+| `REDIS_URL` | Redis URL for health checks and shared runtime access |
+| `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | Celery broker and result backend URLs |
+| `LLM_PROVIDER` | `random`, `mock`, `openai`, or `anthropic` |
+| `LLM_MODEL` | Chat model name for the selected remote provider |
+| `OPENAI_API_KEY` | Required for OpenAI chat or OpenAI embeddings |
+| `ANTHROPIC_API_KEY` | Required when `LLM_PROVIDER=anthropic` |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIM`, `EMBEDDING_BATCH_SIZE` | Embedding backend configuration |
+| `RERANKER_BACKEND` | `none`, `cross-encoder`, or `cohere` |
+| `COHERE_API_KEY` | Required only when using the Cohere reranker |
+| `UPLOAD_DIR`, `INDEX_DIR` | Runtime storage paths for uploads and BM25 indexes |
+| `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`, `OCR_TEXT_THRESHOLD` | Ingestion and chunking controls |
+| `APP_ENV`, `SECRET_KEY`, `LOG_LEVEL` | Application runtime settings |
+| `API_URL` | Server-side Next.js rewrite target for the API |
+
+Do not commit `.env`, real API keys, credentials, private endpoints, or private datasets.
+
+## Common Commands
 
 ```bash
-make dev-logs           # tail all dev logs
-make dev-restart-worker # apply worker code changes
-make dev-down           # stop dev stack
+make help                 # list available commands
+make up-build             # build and start the base stack
+make dev                  # start the hot-reload development stack
+make migrate              # run Alembic migrations
+make logs                 # follow all service logs
+make test                 # run unit and eval tests in the API container
+make lint                 # run ruff in the API container
+make typecheck            # run mypy in the API container
+make down                 # stop services
+make down-v               # stop services and remove volumes
 ```
 
-### Environment variables
+The Makefile commands expect the Docker Compose stack to be running for test, lint, typecheck, and migration commands.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `LLM_PROVIDER` | `random` (stub, no key needed) · `openai` · `anthropic` | `random` |
-| `LLM_MODEL` | Model name | `gpt-4o` |
-| `OPENAI_API_KEY` | OpenAI key (required when `LLM_PROVIDER=openai`) | — |
-| `ANTHROPIC_API_KEY` | Anthropic key (required when `LLM_PROVIDER=anthropic`) | — |
-| `EMBEDDING_MODEL` | Embedding model | `text-embedding-3-small` |
-| `DATABASE_URL` | Async PostgreSQL URL | `postgresql+asyncpg://...` |
-| `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
-| `RERANKER_BACKEND` | `none` · `cross-encoder` · `cohere` | `none` |
-
----
-
-## Running tests
+## Testing
 
 ```bash
-make test-unit    # chunker, retrieval metrics, confidence scorer
-make test-eval    # BM25 quality, hybrid fusion quality, metrics correctness
-make test         # all tests
+make test-unit
+make test-eval
+make test
 ```
 
-The eval suite runs entirely offline — no database or API key required. Dense retrieval is replaced with a perfect oracle and BM25 is built in-memory from the gold corpus.
+The unit and eval tests are intended to run offline inside the API container. The eval suite uses the small fixture set in `data/gold_queries/sample_queries.json`; it is useful as a regression check, not as a benchmark claim.
 
-### Benchmark targets (gold query set, 15 queries)
+## Screenshots And Demo
 
-| Metric | Target |
-|--------|--------|
-| BM25 Recall@10 | ≥ 0.50 |
-| Hybrid Recall@10 (oracle dense) | ≥ 0.80 |
-| BM25 MRR | ≥ 0.40 |
-| Hybrid MRR | ≥ BM25 MRR |
+Screenshots and demo media are not included yet.
 
----
+TODO:
 
-## Design decisions
+- add a query workflow screenshot
+- add a document upload / processing screenshot
+- add an audit log screenshot
+- add a short demo GIF after the UI is stable
 
-**Hybrid retrieval over dense-only.** BM25 handles exact-match queries (standard numbers, product codes) that embedding models often miss. RRF fusion with `k=60` is robust to score-scale differences and outperforms both retrievers individually on the benchmark.
+## Architecture Notes
 
-**pgvector over a dedicated vector database.** Clinical document corpora are small (thousands to low millions of chunks). A single Postgres instance with an HNSW index handles the load without operational overhead. HNSW index creation uses `CREATE INDEX CONCURRENTLY` in a separate migration so it does not block the schema migration transaction.
+`docs/architecture/`, `docs/decisions/`, and `docs/threat-model/` are reserved for deeper design documentation. They currently contain placeholders only.
 
-**Section-aware chunking.** Naive fixed-size chunking splits sentences mid-way and loses section context. The chunker respects sentence boundaries, protects table blocks atomically, and inherits section headings into each chunk's metadata. This significantly improves retrieval precision for structured regulatory documents.
+TODO:
 
-**Structured LLM output via Pydantic.** The answer prompt returns a validated `StructuredAnswerOutput` object — not free text with regex-parsed citations. OpenAI uses `response_format={"type": "json_object"}`; Anthropic uses tool use with `model_json_schema()` as the input schema. No citation parsing can fail silently.
+- add an exported architecture diagram image
+- document the threat model for prompt injection, private data handling, and audit integrity
+- add concise ADRs for retrieval, LLM provider abstraction, and confidence scoring
 
-**Provider abstraction.** `BaseLLMClient` defines `complete()` and `complete_structured()`. Swapping providers is a one-line config change. This also makes the LLM layer fully mockable in tests.
+## Current Status And Limitations
 
-**Answer refusal on insufficient evidence.** When the retrieved context does not support an answer, the model sets `insufficient_context=true` and returns an empty answer string. This is enforced in the prompt and validated by Pydantic — not left to model discretion.
+- This is an early reference implementation, not a certified clinical, regulatory, or medical device system.
+- The default local mode uses mock LLM responses and deterministic random embeddings.
+- External provider use requires valid API keys and may incur provider costs.
+- Role-based access control, production authentication, deployment hardening, and private dataset governance are not implemented.
+- Sample data and eval fixtures are intentionally small and should not be interpreted as benchmark evidence.
+- Several documentation folders are placeholders until diagrams, decisions, and threat-model notes are added.
 
----
+## Contributing
 
-## Roadmap
+This repository is published primarily as a portfolio and reference implementation. External issues and pull requests are not currently being accepted.
 
-**V2**
-- Contradiction detection between document versions
-- Traceability mapper: requirement → evidence → source chunk
-- Gap analysis: given a checklist, identify missing supporting evidence
-- Adversarial eval set (prompt injection, indirect injection via documents)
+You may read, clone, and use the project subject to the license.
 
-**V3**
-- Streaming answers via Server-Sent Events
-- Human feedback loop with active learning for retrieval fine-tuning
-- Role-based access control (reviewer, uploader, auditor)
-- Local model serving via vLLM for air-gapped environments
+## Security
+
+Do not publish secrets, credentials, private endpoints, protected health information, or private datasets in this repository. If you find a security issue, contact the maintainer directly rather than opening a public issue.
+
+## Maintainer
+
+Maintained by Prakash Khunti.
+
+For portfolio or professional inquiries, use the contact channel listed on the maintainer's GitHub profile.

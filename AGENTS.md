@@ -1,9 +1,17 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex when working with this repository.
 
 ## Project
 
-**regintel-ai** is a production-grade, audit-ready clinical document intelligence system for regulated AI.
+**regintel-ai** is a portfolio / reference implementation of audit-ready clinical document intelligence for regulated AI workflows.
 
-This repository is in early initialization — no source code, tooling, or configuration has been added yet. Update this file as the project takes shape.
+The repository contains a FastAPI API, Celery ingestion worker, Next.js web app, shared retrieval/evaluation packages, Docker Compose infrastructure, and pytest coverage.
+
+## Working Guidelines
+
+- Keep changes focused and consistent with the existing architecture.
+- Do not add fake metrics, screenshots, benchmarks, usage numbers, or deployment claims.
+- Do not commit secrets, credentials, private endpoints, protected health information, or private datasets.
+- Prefer documentation and setup polish over broad refactors unless a code change is clearly needed to fix setup.
+- Treat this as a showcase-first repository, not a contribution-driven open source project.
